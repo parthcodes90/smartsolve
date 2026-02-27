@@ -1,8 +1,8 @@
-# Municipal Complaint Management System — Phase 1 Backend
+# Municipal Complaint Management System — Backend
 
-Node.js + Express REST API for complaint intake, zone resolution, AI scoring, and zone-scoped department assignment.
+Node.js + Express REST API for complaint intake, zone resolution, AI scoring, and department assignment.
 
-## Run
+## Run locally
 
 ```bash
 npm install
@@ -25,8 +25,22 @@ psql $DATABASE_URL -f src/models/schema.sql
 psql $DATABASE_URL -f src/models/seed.sql
 ```
 
-## Endpoints
+## API endpoints
 
 - `POST /api/complaints` (multipart/form-data)
+- `GET /api/complaints`
+- `GET /api/complaints/:id`
 - `GET /api/zones`
+- `GET /api/departments`
 - `GET /health`
+
+## Deploy backend on Vercel
+
+This folder contains `vercel.json` and `api/index.js` for serverless deployment.
+
+1. Import `backend` as a Vercel project.
+2. Build & output are handled by `vercel.json`.
+3. Add required environment variables (`DATABASE_URL`, `ANTHROPIC_API_KEY`, `CLOUDINARY_URL`).
+4. Deploy.
+5. Use deployed API URL in frontend as `VITE_API_URL=https://<backend-domain>/api`.
+

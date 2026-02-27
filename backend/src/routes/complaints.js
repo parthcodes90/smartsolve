@@ -33,6 +33,100 @@ function validatePayload(req, res, next) {
   return next();
 }
 
+
+router.get('/', async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT
+        c.id,
+        c.description,
+        c.status,
+        c.priority_label,
+        c.priority_score,
+        c.created_at,
+        c.address,
+        c.submitted_by,
+        cat.name AS category,
+        z.name AS zone,
+        d.name AS department
+      FROM complaints c
+      JOIN complaint_categories cat ON cat.id = c.category_id
+      JOIN zones z ON z.id = c.zone_id
+      JOIN departments d ON d.id = c.assigned_department_id
+      ORDER BY c.created_at DESC;`
+    );
+
+    const complaints = rows.map((row) => ({
+      id: row.id,
+      title: row.category,
+      category: row.category,
+      status: row.status,
+      priority: row.priority_label,
+      priorityScore: Number(row.priority_score),
+      zone: row.zone,
+      department: row.department,
+      reportedAt: row.created_at,
+      reportedBy: row.submitted_by,
+      description: row.description,
+      location: row.address
+    }));
+
+    res.json({ data: complaints });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id', async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT
+        c.id,
+        c.description,
+        c.status,
+        c.priority_label,
+        c.priority_score,
+        c.created_at,
+        c.address,
+        c.submitted_by,
+        cat.name AS category,
+        z.name AS zone,
+        d.name AS department
+      FROM complaints c
+      JOIN complaint_categories cat ON cat.id = c.category_id
+      JOIN zones z ON z.id = c.zone_id
+      JOIN departments d ON d.id = c.assigned_department_id
+      WHERE c.id = $1
+      LIMIT 1;`,
+      [req.params.id]
+    );
+
+    if (!rows[0]) {
+      return res.status(404).json({ message: 'Complaint not found.' });
+    }
+
+    const row = rows[0];
+    return res.json({
+      data: {
+        id: row.id,
+        title: row.category,
+        category: row.category,
+        status: row.status,
+        priority: row.priority_label,
+        priorityScore: Number(row.priority_score),
+        zone: row.zone,
+        department: row.department,
+        reportedAt: row.created_at,
+        reportedBy: row.submitted_by,
+        description: row.description,
+        location: row.address
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.post('/', upload.single('photo'), validatePayload, async (req, res, next) => {
   try {
     const { description, category_id: categoryId, latitude, longitude, address, submitted_by: submittedBy } = req.body;
