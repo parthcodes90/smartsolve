@@ -1,33 +1,24 @@
-/**
- * Generic Validation Middleware
- * Uses Zod to validate request body fields
- */
 const validate = (schema) => (req, res, next) => {
-    try {
-        // Validate request body
-        const validatedBody = schema.parse(req.body);
-
-        // Replace req.body with validated and transformed data
-        req.body = validatedBody;
-        next();
-    } catch (error) {
-        if (error.errors) {
-            // Zod formatted error
-            return res.status(400).json({
-                success: false,
-                message: 'Input validation failed',
-                errors: error.errors.map(err => ({
-                    field: err.path.join('.'),
-                    message: err.message
-                }))
-            });
-        }
-
-        res.status(400).json({
-            success: false,
-            message: 'Malformed request body'
-        });
+  try {
+    req.body = schema.parse(req.body);
+    next();
+  } catch (error) {
+    if (error.issues) {
+      return res.status(400).json({
+        success: false,
+        message: 'Input validation failed',
+        errors: error.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+        })),
+      });
     }
+
+    return res.status(400).json({
+      success: false,
+      message: 'Malformed request body',
+    });
+  }
 };
 
 module.exports = validate;

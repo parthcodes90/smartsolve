@@ -6,12 +6,12 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const complaintRoutes = require('./routes/complaintRoutes');
+const zoneRoutes = require('./routes/zoneRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(helmet());
 app.use(cors());
 app.use(compression());
@@ -19,24 +19,17 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files (for local storage option in Phase-1)
 if (process.env.STORAGE_TYPE === 'local') {
   app.use('/uploads', express.static('uploads'));
 }
 
-// Health Check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    service: 'Municipal Civic Complaint API'
-  });
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
-// Routes
 app.use('/api/complaints', complaintRoutes);
+app.use('/api/zones', zoneRoutes);
 
-// Error Handling
 app.use(errorHandler);
 
 app.listen(PORT, () => {
