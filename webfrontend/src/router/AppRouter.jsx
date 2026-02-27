@@ -8,6 +8,7 @@ import Map from '../pages/admin/Map';
 import Departments from '../pages/admin/Departments';
 import ComplaintsList from '../pages/admin/complaints/index';
 import ComplaintDetail from '../pages/admin/complaints/Detail';
+import NotFound from '../pages/NotFound';
 
 export const AppRouter = createBrowserRouter([
     {
@@ -47,6 +48,14 @@ export const AppRouter = createBrowserRouter([
                 path: 'complaints/:id', // Drill-down capability
                 element: <ComplaintDetail />,
             },
+            {
+                path: '*',
+                element: <NotFound />,
+            },
         ],
+    },
+    {
+        path: '*',
+        element: <NotFound />,
     },
 ]);
