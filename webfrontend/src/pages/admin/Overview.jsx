@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquareWarning, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
+import { MessageSquareWarning, AlertCircle, Clock, CheckCircle2, PieChart as PieChartIcon } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import PageHeader from '../../components/ui/PageHeader';
 import KPICard from '../../components/ui/KPICard';
 import DataTable from '../../components/ui/DataTable';
@@ -9,15 +10,6 @@ import PriorityPill from '../../components/ui/PriorityPill';
 import LoadingSkeleton from '../../components/ui/LoadingSkeleton';
 import ErrorState from '../../components/ui/ErrorState';
 import { getOverviewStats, getComplaints } from '../../adapters/dataAdapter';
-
-/**
- * Overview — Admin dashboard overview page.
- * Shows KPI cards, recent complaints, and status breakdown.
- *
- * FUTURE INTEGRATION:
- * - KPI data will come from getOverviewStats() once a stats API exists.
- * - Recent complaints from getComplaints() with limit parameter.
- */
 
 export default function Overview() {
     const navigate = useNavigate();
@@ -37,7 +29,6 @@ export default function Overview() {
             ]);
 
             setStats(statsResult.data);
-            // Show only the 5 most recent complaints
             setRecentComplaints(complaintsResult.data.slice(0, 5));
             setIsFromMock(statsResult.isFromMock || complaintsResult.isFromMock);
             if (statsResult.error) setError(statsResult.error);
@@ -93,6 +84,32 @@ export default function Overview() {
         },
     ];
 
+    const statusSummary = [
+        { label: 'Open', count: stats?.openComplaints ?? 0, total: stats?.totalComplaints ?? 1, color: 'bg-status-open' },
+        { label: 'In Progress', count: stats?.inProgressComplaints ?? 0, total: stats?.totalComplaints ?? 1, color: 'bg-status-inprogress' },
+        { label: 'Resolved', count: stats?.resolvedComplaints ?? 0, total: stats?.totalComplaints ?? 1, color: 'bg-status-resolved' },
+        {
+            label: 'Other',
+            count: Math.max(0, (stats?.totalComplaints ?? 0) - (stats?.openComplaints ?? 0) - (stats?.inProgressComplaints ?? 0) - (stats?.resolvedComplaints ?? 0)),
+            total: stats?.totalComplaints ?? 1,
+            color: 'bg-gray-400',
+        },
+    ];
+
+    const totalForPie = stats?.totalComplaints ?? 0;
+    const performancePieData = totalForPie > 0
+        ? [
+            { name: 'Open', value: stats?.openComplaints ?? 0, color: '#f59e0b' },
+            { name: 'In Progress', value: stats?.inProgressComplaints ?? 0, color: '#3b82f6' },
+            { name: 'Resolved', value: stats?.resolvedComplaints ?? 0, color: '#22c55e' },
+            {
+                name: 'Other',
+                value: Math.max(0, totalForPie - (stats?.openComplaints ?? 0) - (stats?.inProgressComplaints ?? 0) - (stats?.resolvedComplaints ?? 0)),
+                color: '#9ca3af',
+            },
+        ].filter((item) => item.value > 0)
+        : [];
+
     const recentColumns = [
         {
             key: 'id',
@@ -120,7 +137,6 @@ export default function Overview() {
                 subtitle="Real-time summary of civic complaints across all zones"
             />
 
-            {/* Backend warning banner */}
             {isFromMock && (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 animate-fade-in" role="alert">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -128,7 +144,6 @@ export default function Overview() {
                 </div>
             )}
 
-            {/* KPI cards */}
             <section aria-label="Key metrics">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {kpiCards.map((card) => (
@@ -145,39 +160,70 @@ export default function Overview() {
                 </div>
             </section>
 
-            {/* Status breakdown */}
-            <section aria-label="Status distribution">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h2>
-                <div className="card p-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                        {[
-                            { label: 'Open', count: stats?.openComplaints ?? 0, total: stats?.totalComplaints ?? 1, color: 'bg-status-open' },
-                            { label: 'In Progress', count: stats?.inProgressComplaints ?? 0, total: stats?.totalComplaints ?? 1, color: 'bg-status-inprogress' },
-                            { label: 'Resolved', count: stats?.resolvedComplaints ?? 0, total: stats?.totalComplaints ?? 1, color: 'bg-status-resolved' },
-                            { label: 'Other', count: Math.max(0, (stats?.totalComplaints ?? 0) - (stats?.openComplaints ?? 0) - (stats?.inProgressComplaints ?? 0) - (stats?.resolvedComplaints ?? 0)), total: stats?.totalComplaints ?? 1, color: 'bg-gray-400' },
-                        ].map((item) => {
-                            const pct = item.total > 0 ? Math.round((item.count / item.total) * 100) : 0;
-                            return (
-                                <div key={item.label} className="space-y-2">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="font-medium text-gray-700">{item.label}</span>
-                                        <span className="text-gray-500">{pct}%</span>
+            <section aria-label="Status and performance analytics" className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h2>
+                    <div className="card p-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                            {statusSummary.map((item) => {
+                                const pct = item.total > 0 ? Math.round((item.count / item.total) * 100) : 0;
+                                return (
+                                    <div key={item.label} className="space-y-2">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="font-medium text-gray-700">{item.label}</span>
+                                            <span className="text-gray-500">{pct}%</span>
+                                        </div>
+                                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full ${item.color} rounded-full transition-all duration-700 ease-out`}
+                                                style={{ width: `${pct}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-400">{item.count} complaints</p>
                                     </div>
-                                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                        <div
-                                            className={`h-full ${item.color} rounded-full transition-all duration-700 ease-out`}
-                                            style={{ width: `${pct}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-gray-400">{item.count} complaints</p>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Performance Analytics</h2>
+                    <div className="card p-6">
+                        <div className="flex items-center gap-2 mb-4 text-gray-700">
+                            <PieChartIcon className="w-4 h-4" />
+                            <p className="text-sm font-medium">Complaint lifecycle breakdown</p>
+                        </div>
+                        {performancePieData.length > 0 ? (
+                            <div className="h-72" aria-label="Performance analytics pie chart">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={performancePieData}
+                                            dataKey="value"
+                                            nameKey="name"
+                                            cx="50%"
+                                            cy="50%"
+                                            outerRadius={92}
+                                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                            labelLine={false}
+                                        >
+                                            {performancePieData.map((entry) => (
+                                                <Cell key={entry.name} fill={entry.color} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip formatter={(value) => [`${value} complaints`, 'Count']} />
+                                        <Legend verticalAlign="bottom" height={32} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500">No complaint data available for analytics yet.</p>
+                        )}
                     </div>
                 </div>
             </section>
 
-            {/* Recent complaints */}
             <section aria-label="Recent complaints">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-gray-900">Recent Complaints</h2>
