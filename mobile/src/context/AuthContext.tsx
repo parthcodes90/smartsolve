@@ -71,6 +71,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const extractTokenFromResponse = (result: any): string | null => {
+        if (!result || typeof result !== "object") return null;
+
+        return (
+            result.token ||
+            result.accessToken ||
+            result.data?.token ||
+            result.data?.accessToken ||
+            null
+        );
+    };
+
     const signIn = async (email: string, password: string) => {
         const response = await fetch(API_CONFIG.ENDPOINTS.LOGIN, {
             method: "POST",
@@ -83,7 +95,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             throw new Error(result.message || "Login failed");
         }
 
-        const accessToken = result?.token;
+        const accessToken = extractTokenFromResponse(result);
         if (!accessToken) {
             throw new Error("Missing access token in login response");
         }

@@ -35,7 +35,7 @@ export default function Register() {
                 console.log(`[Diagnostic] Backend health check OK:`, data);
             } catch (err: any) {
                 console.warn(`[Diagnostic] Backend health check FAILED: ${err.message}`);
-                console.warn(`[Diagnostic] Tip: If using Emulator, use http://10.0.2.2:5000. If physical device, ensure same WiFi and check firewall.`);
+                console.warn(`[Diagnostic] Tip: If using Emulator, use http://10.0.2.2:3000. If physical device, ensure same WiFi and check firewall.`);
             }
         };
         checkConnectivity();
