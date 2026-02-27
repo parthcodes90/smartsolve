@@ -8,7 +8,7 @@ router.get('/', async (req, res, next) => {
     const { rows } = await db.query(
       'SELECT id, name, ward_number FROM zones ORDER BY ward_number ASC NULLS LAST, name ASC;'
     );
-    res.json({ zones: rows });
+    res.json({ data: rows });
   } catch (error) {
     next(error);
   }
