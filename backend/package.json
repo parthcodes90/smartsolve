@@ -4,12 +4,14 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --check src/app.js && node --check src/routes/complaints.js",
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "build": "npx prisma generate",
     "prisma:generate": "prisma generate",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "db:schema": "psql $DATABASE_URL -f src/models/schema.sql",
+    "db:seed": "psql $DATABASE_URL -f src/models/seed.sql"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -46,7 +48,9 @@
     "prisma": "^7.4.1",
     "react-router-dom": "^7.13.1",
     "uuid": "^13.0.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@anthropic-ai/sdk": "^0.20.0",
+    "express-validator": "^7.2.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
