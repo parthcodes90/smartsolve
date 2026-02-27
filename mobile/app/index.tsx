@@ -56,7 +56,7 @@ export default function Index() {
         </Text>
         {backendStatus === "Offline" && (
           <Text style={{ marginTop: 15, color: "#ef4444", fontSize: 11, textAlign: "center" }}>
-            Make sure your phone and PC are on the same WiFi and firewall allows port 5000.
+            Make sure your phone and PC are on the same WiFi and firewall allows port 3000.
           </Text>
         )}
       </View>
