@@ -1,67 +1,31 @@
-const prisma = require('../config/prisma');
+const pool = require('../config/db');
 
-/**
- * Zone Resolution Service
- * Determines the specific municipality zone for a latitude/longitude pair
- */
-class ZoneService {
-    constructor() {
-        this.defaultZoneName = process.env.DEFAULT_MUNICIPAL_ZONE || 'DEFAULT_MUNICIPAL_ZONE';
+async function resolveZone(latitude, longitude) {
+  const geoQuery = `
+    SELECT id, name, ward_number
+    FROM zones
+    WHERE boundary IS NOT NULL
+      AND ST_Contains(
+        ST_SetSRID(ST_GeomFromGeoJSON(boundary::text), 4326),
+        ST_SetSRID(ST_MakePoint($1, $2), 4326)
+      )
+    LIMIT 1
+  `;
+
+  try {
+    const result = await pool.query(geoQuery, [longitude, latitude]);
+
+    if (result.rows.length > 0) {
+      return result.rows[0];
     }
+  } catch (error) {
+    console.warn('[ZONE_RESOLVE_WARNING] PostGIS lookup failed, using default zone.', error.message);
+  }
 
-    async resolveZoneByCoords(lat, lng) {
-        try {
-            // 1. Fetch all zones with boundary metadata
-            const zones = await prisma.zone.findMany();
-
-            // 2. Logic: Search for the zone containing coordinates
-            // Phase-1: Simple within-bounding-box logic
-            // Phase-2: Replace with PostGIS ST_Contains search in DB
-            let resolvedZone = null;
-
-            for (const zone of zones) {
-                if (this._isPointInZone(lat, lng, zone.boundary)) {
-                    resolvedZone = zone;
-                    break;
-                }
-            }
-
-            // 3. Fallback to DEFAULT
-            if (!resolvedZone) {
-                resolvedZone = await prisma.zone.findUnique({
-                    where: { name: this.defaultZoneName }
-                });
-            }
-
-            return resolvedZone;
-
-        } catch (error) {
-            console.error('[ZONE_ERROR]: Location resolution failed', error);
-            return null;
-        }
-    }
-
-    /**
-     * Helper: Bounding Box check (Phase-1 Logic)
-     * Boundary expected: { minLat, maxLat, minLng, maxLng } OR [ [lat,lng], [lat,lng] ]
-     */
-    _isPointInZone(lat, lng, boundary) {
-        if (!boundary) return false;
-
-        // Simple Bounding Box check
-        if (boundary.minLat && boundary.maxLat && boundary.minLng && boundary.maxLng) {
-            return (
-                lat >= boundary.minLat &&
-                lat <= boundary.maxLat &&
-                lng >= boundary.minLng &&
-                lng <= boundary.maxLng
-            );
-        }
-
-        // For polygons, a more complex library could be used (e.g., 'point-in-polygon')
-        // but Phase-1 strictly calls for bounding-box/static logic
-        return false;
-    }
+  const fallback = await pool.query('SELECT id, name, ward_number FROM zones ORDER BY created_at ASC LIMIT 1');
+  return fallback.rows[0] || null;
 }
 
-module.exports = new ZoneService();
+module.exports = {
+  resolveZone,
+};
