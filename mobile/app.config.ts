@@ -1,0 +1,63 @@
+const isProduction = process.env.APP_ENV === "production" || process.env.NODE_ENV === "production";
+
+const defaultBaseUrl = isProduction
+  ? process.env.EXPO_PUBLIC_API_BASE_URL_PROD ?? "https://api.your-domain.com"
+  : "http://localhost:3000";
+
+const resolvedBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? defaultBaseUrl;
+
+const config = {
+  name: "mobile",
+  slug: "mobile",
+  version: "1.0.0",
+  orientation: "portrait",
+  icon: "./assets/images/icon.png",
+  scheme: "mobile",
+  userInterfaceStyle: "automatic",
+  newArchEnabled: true,
+  ios: {
+    supportsTablet: true,
+  },
+  android: {
+    adaptiveIcon: {
+      backgroundColor: "#E6F4FE",
+      foregroundImage: "./assets/images/android-icon-foreground.png",
+      backgroundImage: "./assets/images/android-icon-background.png",
+      monochromeImage: "./assets/images/android-icon-monochrome.png",
+    },
+    edgeToEdgeEnabled: true,
+    predictiveBackGestureEnabled: false,
+    networkSecurityConfig: "./network_security_config.xml",
+  },
+  web: {
+    output: "static",
+    favicon: "./assets/images/favicon.png",
+  },
+  developmentServer: {
+    https: false,
+  },
+  plugins: [
+    "expo-router",
+    [
+      "expo-splash-screen",
+      {
+        image: "./assets/images/splash-icon.png",
+        imageWidth: 200,
+        resizeMode: "contain",
+        backgroundColor: "#ffffff",
+        dark: {
+          backgroundColor: "#000000",
+        },
+      },
+    ],
+  ],
+  experiments: {
+    typedRoutes: true,
+    reactCompiler: true,
+  },
+  extra: {
+    apiBaseUrl: resolvedBaseUrl,
+  },
+};
+
+export default config;
