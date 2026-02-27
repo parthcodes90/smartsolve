@@ -9,6 +9,7 @@ const morgan = require('morgan');
 const complaintRoutes = require('./routes/complaints');
 const zoneRoutes = require('./routes/zones');
 const departmentRoutes = require('./routes/departments');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.get('/health', (req, res) => {
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/zones', zoneRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api/auth', authRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

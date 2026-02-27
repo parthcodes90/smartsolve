@@ -1,127 +1,125 @@
-const prisma = require('../config/prisma');
+const pool = require('../config/db');
 const storageService = require('../services/storageService');
-const zoneService = require('../services/zoneService');
-const aiService = require('../services/aiService');
-const assignmentService = require('../services/assignmentService');
+const { resolveZone } = require('../services/zoneService');
+const { processComplaint } = require('../services/aiService');
+const { findDepartmentByCode } = require('../services/assignmentService');
 
 const createComplaint = async (req, res) => {
-    const { description, address, category, latitude, longitude, citizen_name, citizen_email, citizen_phone } = req.body;
-    const photoBuffer = req.file?.buffer; // From multer memory storage
+  const { description, category_id, latitude, longitude, address, submitted_by } = req.body;
 
-    // 1. Photo Upload (Abstraction)
-    let photoUrl = null;
-    if (photoBuffer) {
-        photoUrl = await storageService.uploadPhoto(photoBuffer, `complaint-${Date.now()}`);
+  const client = await pool.connect();
+
+  try {
+    let photo_url = null;
+    if (req.file) {
+      try {
+        photo_url = await storageService.uploadPhoto(req.file.buffer, `complaint-${Date.now()}`);
+      } catch (error) {
+        console.warn('[PHOTO_UPLOAD_WARNING] Upload failed; continuing without photo.', error.message);
+      }
     }
 
-    // 2. Zone Resolution
-    const latNum = parseFloat(latitude);
-    const lngNum = parseFloat(longitude);
-    const resolvedZone = await zoneService.resolveZoneByCoords(latNum, lngNum);
-    const zoneId = resolvedZone?.id || null;
+    const categoryResult = await client.query(
+      'SELECT id, name, default_department_code FROM categories WHERE id = $1',
+      [category_id]
+    );
 
-    // 3. Initial Record Creation (Status: PENDING)
-    const complaint = await prisma.complaint.create({
-        data: {
-            description,
-            address,
-            category,
-            photoUrl,
-            latitude: latNum,
-            longitude: lngNum,
-            citizenName: citizen_name || null,
-            citizenEmail: citizen_email || null,
-            citizenPhone: citizen_phone || null,
-            zoneId,
-            status: 'PENDING'
-        }
+    const category = categoryResult.rows[0]?.name || 'Other';
+    const defaultDepartmentCode = categoryResult.rows[0]?.default_department_code || null;
+
+    const zone = await resolveZone(Number.parseFloat(latitude), Number.parseFloat(longitude));
+
+    const ai = await processComplaint({
+      description,
+      category,
+      zone,
+      fallbackDepartmentCode: defaultDepartmentCode,
     });
 
-    // 4. Update Status (Status: AI_ANALYSIS)
-    await prisma.complaint.update({
-        where: { id: complaint.id },
-        data: { status: 'AI_ANALYSIS' }
-    });
+    const department = zone?.id
+      ? await findDepartmentByCode(zone.id, ai.department_code)
+      : null;
 
-    try {
-        // 5. AI Analysis Integration
-        const aiResponse = await aiService.analyzeComplaint({
-            description,
-            address,
-            category,
-            photoUrl,
-            location: { lat: latNum, lng: lngNum }
-        });
-
-        // 6. Store AI Result
-        const aiAnalysis = await prisma.aiAnalysis.create({
-            data: {
-                complaintId: complaint.id,
-                departmentPrediction: aiResponse.departmentClassification,
-                severityScore: aiResponse.severityScore,
-                locationSensitivity: aiResponse.locationSensitivityScore,
-                publicRiskScore: aiResponse.publicRiskScore,
-                envImpactScore: aiResponse.environmentalImpactScore,
-                priorityScore: aiResponse.priorityScore,
-                priorityLevel: aiResponse.priorityLevel,
-                analyticsTags: aiResponse.analyticsTags,
-                confidence: aiResponse.confidenceMetrics.overall,
-                rawAiOutput: aiResponse
-            }
-        });
-
-        // 7. Department Assignment (Zone-aware)
-        const assignment = await assignmentService.assignToDepartment({
-            complaintId: complaint.id,
-            predictedDepartment: aiResponse.departmentClassification,
-            zoneId: zoneId
-        });
-
-        // 8. Final Status Update (Status: ASSIGNED)
-        const finalComplaint = await prisma.complaint.update({
-            where: { id: complaint.id },
-            data: {
-                status: 'ASSIGNED',
-                priority: aiResponse.priorityLevel,
-                assignedAt: new Date()
-            },
-            include: {
-                aiAnalysis: true,
-                assignments: {
-                    include: {
-                        department: true
-                    }
-                }
-            }
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'Complaint received and assigned successfully',
-            data: finalComplaint
-        });
-
-    } catch (error) {
-        console.error(`[COMPLAINT_PROCESS_FAILED]: ${complaint.id}`, error);
-
-        // Self-healing or Fallback to manual if AI fails
-        // In Phase-1, we still assign to Manual Control Dept if AI or internal logic fails after intake
-        const fallbackAssignment = await assignmentService.assignToFallback(complaint.id, zoneId);
-
-        await prisma.complaint.update({
-            where: { id: complaint.id },
-            data: { status: 'ASSIGNED', assignedAt: new Date() }
-        });
-
-        res.status(202).json({
-            success: true,
-            message: 'Complaint intake completed with manual queue fallback',
-            complaintId: complaint.id,
-            error_hint: 'AI analysis or automatic assignment failed, assigned to control center.'
-        });
+    if (!department && ai.department_code) {
+      console.warn(`[ASSIGNMENT_WARNING] Department code ${ai.department_code} not found in resolved zone.`);
     }
+
+    await client.query('BEGIN');
+
+    const insertComplaint = await client.query(
+      `INSERT INTO complaints (
+        description, category_id, photo_url, latitude, longitude, address,
+        submitted_by, zone_id, assigned_department_id, ai_department_code,
+        ai_reasoning, severity_score, location_sensitivity_score, public_risk_score,
+        priority_score, priority_label, status, assigned_at
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+        $11,$12,$13,$14,$15,$16,'ASSIGNED',NOW()
+      )
+      RETURNING id`,
+      [
+        description,
+        category_id || null,
+        photo_url,
+        Number.parseFloat(latitude),
+        Number.parseFloat(longitude),
+        address || null,
+        submitted_by || 'anonymous',
+        zone?.id || null,
+        department?.id || null,
+        ai.department_code,
+        ai.reasoning,
+        ai.severity_score,
+        ai.location_sensitivity_score,
+        ai.public_risk_score,
+        ai.priority_score,
+        ai.priority_label,
+      ]
+    );
+
+    const complaintId = insertComplaint.rows[0].id;
+
+    await client.query(
+      `INSERT INTO assignment_logs (complaint_id, department_id, assigned_by, notes)
+       VALUES ($1, $2, 'AI', $3)`,
+      [
+        complaintId,
+        department?.id || null,
+        department
+          ? `Assigned using department code ${ai.department_code}`
+          : `No zone-level department found for code ${ai.department_code}; queued for manual review`,
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      complaint_id: complaintId,
+      zone: zone ? { id: zone.id, name: zone.name, ward_number: zone.ward_number } : null,
+      assigned_department: {
+        id: department?.id || null,
+        name: department?.name || null,
+        code: ai.department_code,
+      },
+      priority_score: ai.priority_score,
+      priority_label: ai.priority_label,
+      scores: {
+        severity: ai.severity_score,
+        location_sensitivity: ai.location_sensitivity_score,
+        public_risk: ai.public_risk_score,
+      },
+      ai_reasoning: ai.reasoning,
+      status: 'ASSIGNED',
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[COMPLAINT_PROCESSING_ERROR]', error);
+    res.status(500).json({ error: 'Complaint processing failed', detail: error.message });
+  } finally {
+    client.release();
+  }
 };
 
 module.exports = {
-    createComplaint
+  createComplaint,
 };
