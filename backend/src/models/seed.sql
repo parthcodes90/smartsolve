@@ -1,29 +1,33 @@
-INSERT INTO zones (id, name, ward_number) VALUES
-  ('a1000000-0000-0000-0000-000000000001', 'Zone A — North Ward',  'W-01'),
-  ('a2000000-0000-0000-0000-000000000002', 'Zone B — South Ward',  'W-02'),
-  ('a3000000-0000-0000-0000-000000000003', 'Zone C — East Ward',   'W-03'),
-  ('a4000000-0000-0000-0000-000000000004', 'Zone D — West Ward',   'W-04')
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO zones (name, ward_number, boundary)
+VALUES
+  ('Zone A — North Ward', 'W-01', ST_GeomFromText('POLYGON((72.80 19.15, 72.95 19.15, 72.95 19.30, 72.80 19.30, 72.80 19.15))', 4326)),
+  ('Zone B — South Ward', 'W-02', ST_GeomFromText('POLYGON((72.80 19.00, 72.95 19.00, 72.95 19.15, 72.80 19.15, 72.80 19.00))', 4326))
+ON CONFLICT (name) DO NOTHING;
 
-INSERT INTO departments (zone_id, name, code, contact_email) VALUES
-  ('a1000000-0000-0000-0000-000000000001', 'Roads & Infrastructure',      'ROADS',        'roads.zoneA@municipality.gov'),
-  ('a1000000-0000-0000-0000-000000000001', 'Sanitation & Waste',          'SANITATION',   'sanitation.zoneA@municipality.gov'),
-  ('a1000000-0000-0000-0000-000000000001', 'Water Supply & Sewerage',     'WATER_SUPPLY', 'water.zoneA@municipality.gov'),
-  ('a1000000-0000-0000-0000-000000000001', 'Electricity & Street Lights', 'ELECTRICITY',  'power.zoneA@municipality.gov'),
-  ('a1000000-0000-0000-0000-000000000001', 'Parks & Horticulture',        'PARKS',        'parks.zoneA@municipality.gov'),
-  ('a1000000-0000-0000-0000-000000000001', 'Stormwater & Drainage',       'DRAINAGE',     'drainage.zoneA@municipality.gov'),
-  ('a1000000-0000-0000-0000-000000000001', 'Public Health',               'HEALTH',       'health.zoneA@municipality.gov'),
-  ('a1000000-0000-0000-0000-000000000001', 'Building & Permits',          'BUILDING',     'building.zoneA@municipality.gov')
+INSERT INTO complaint_categories (code, name)
+VALUES
+  ('ROADS', 'Roads'),
+  ('SANITATION', 'Sanitation'),
+  ('WATER_SUPPLY', 'Water Supply'),
+  ('ELECTRICITY', 'Electricity'),
+  ('PARKS', 'Parks'),
+  ('DRAINAGE', 'Drainage'),
+  ('HEALTH', 'Public Health'),
+  ('BUILDING', 'Building')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO departments (zone_id, code, name)
+SELECT z.id, d.code, d.name
+FROM zones z
+CROSS JOIN (
+  VALUES
+    ('ROADS', 'Roads & Infrastructure'),
+    ('SANITATION', 'Sanitation & Waste Management'),
+    ('WATER_SUPPLY', 'Water Supply & Sewerage'),
+    ('ELECTRICITY', 'Electricity & Street Lighting'),
+    ('PARKS', 'Parks & Horticulture'),
+    ('DRAINAGE', 'Stormwater & Drainage'),
+    ('HEALTH', 'Public Health'),
+    ('BUILDING', 'Building & Permits')
+) AS d(code, name)
 ON CONFLICT (zone_id, code) DO NOTHING;
-
-INSERT INTO categories (name, default_department_code, base_severity) VALUES
-  ('Pothole',              'ROADS',        7),
-  ('Garbage Overflow',     'SANITATION',   6),
-  ('Water Leakage',        'WATER_SUPPLY', 7),
-  ('Street Light Out',     'ELECTRICITY',  4),
-  ('Park Damage',          'PARKS',        3),
-  ('Waterlogging',         'DRAINAGE',     8),
-  ('Illegal Construction', 'BUILDING',     6),
-  ('Stray Animals',        'HEALTH',       5),
-  ('Other',                NULL,           3)
-ON CONFLICT DO NOTHING;
